@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://www.osgi.org/xmlns/blueprint/v1.0.0 http://www.osgi.org/xmlns/blueprint/v1.0.0/blueprint.xsd">
+
+  <!--<reference id="nimbusService" interface="backtype.storm.scheduler.INimbus"/>
+  <reference id="supervisorService" interface="backtype.storm.scheduler.ISupervisor"/>-->
+
+  <bean id="classResolverManager" class="backtype.storm.service.impl.ClassResolverManager"
+        init-method="init" destroy-method="destroy">
+    <!-- Need this service because clojure thinks it's a good idea to assume that the best classloader to use
+    for loading classes is the one that belongs to the current thread and you know what happens
+    when you assume... -->
+    <property name="clojureLoader">
+      <reference interface="clojure.osgi.IClojureLoader"/>
+    </property>
+  </bean>
+  
+  <reference-list id="classResolverList" interface="backtype.storm.service.IClassResolverService" member-type="service-object" availability="optional">
+    <reference-listener ref="classResolverManager" bind-method="onBindService" unbind-method="onUnbindService"/>
+  </reference-list>
+</blueprint>

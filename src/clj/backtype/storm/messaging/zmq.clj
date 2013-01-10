@@ -2,9 +2,19 @@
   (:refer-clojure :exclude [send])
   (:use [backtype.storm.messaging protocol])
   (:import [java.nio ByteBuffer])
-  (:import [org.zeromq ZMQ])
   (:require [zilch.mq :as mq]))
 
+(defmacro zeromq-imports []
+  '(do
+     (let [loader (.getContextClassLoader (Thread/currentThread))]
+    (try
+      (Class/forName "org.zeromq.ZMQ" false loader)
+      (import '[org.zeromq ZMQ])
+      (catch ClassNotFoundException cnfe false
+        (import '[org.jeromq ZMQ])))))
+    )
+
+(zeromq-imports)
 
 (defn parse-packet [^bytes part1 ^bytes part2]
   (let [bb (ByteBuffer/wrap part1)

@@ -4,8 +4,10 @@ import backtype.storm.Config;
 import backtype.storm.generated.ComponentCommon;
 import backtype.storm.generated.ComponentObject;
 import backtype.storm.generated.StormTopology;
+import backtype.storm.service.IClassResolverService;
 import clojure.lang.IFn;
 import clojure.lang.RT;
+import clojure.osgi.IClojureLoader;
 import com.netflix.curator.framework.CuratorFramework;
 import com.netflix.curator.framework.CuratorFrameworkFactory;
 import com.netflix.curator.retry.RetryNTimes;
@@ -26,22 +28,35 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import org.apache.commons.lang.StringUtils;
 import org.apache.thrift7.TException;
 import org.json.simple.JSONValue;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 public class Utils {
+    private static final Logger LOGGER = LoggerFactory.getLogger(Utils.class);
     public static final String DEFAULT_STREAM_ID = "default";
+    private static Set<IClassResolverService> classResolvers;
+    private static IClojureLoader clojureLoader;
 
+    //Thinking about whether or not to use the classResolvers here, since
+    //using it should have some safe guards...
     public static Object newInstance(String klass) {
         try {
-            Class c = Class.forName(klass);
-            return c.newInstance();
+          if(clojureLoader == null) {
+              Class c = Class.forName(klass);
+              return c.newInstance();
+          } else {
+              return clojureLoader.createInstance(Utils.class.getClassLoader(), klass);
+          }
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Couldn't create a new instance for class name: " + klass, e);
         }
     }
     
@@ -57,18 +72,43 @@ public class Utils {
         }
     }
 
-    public static Object deserialize(byte[] serialized) {
+    public static Object deserialize(final byte[] serialized) {
+        //Temporarily store the exception thrown by the class loader
+        Exception ex = null;
         try {
-            ByteArrayInputStream bis = new ByteArrayInputStream(serialized);
-            ObjectInputStream ois = new ObjectInputStream(bis);
-            Object ret = ois.readObject();
-            ois.close();
-            return ret;
-        } catch(IOException ioe) {
-            throw new RuntimeException(ioe);
-        } catch(ClassNotFoundException e) {
-            throw new RuntimeException(e);
+            if (clojureLoader == null) {
+                ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(serialized));
+                try {
+                    return ois.readObject();
+                } finally {
+                    ois.close();
+                }
+            } else {
+                return clojureLoader.invoke(Utils.class.getClassLoader(), new Callable<Object>() {
+                    @Override
+                    public Object call() throws Exception {
+                        ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(serialized));
+                        try {
+                            return ois.readObject();
+                        } finally {
+                            ois.close();
+                        }
+                    }
+                });
+            }
+        } catch(Exception e) {
+          ex = e;
         }
+        if(classResolvers != null) {
+            for (IClassResolverService resolver : classResolvers) {
+                try {
+                    return resolver.deserialize(serialized);
+                } catch(Exception e) {
+                  //Probably no point to even logging anything here...
+                }
+            }
+        }
+        throw new RuntimeException("Serialized class couldn't be resolved via any available classloader.", ex);
     }
 
     public static <T> String join(Iterable<T> coll, String sep) {
@@ -93,7 +133,7 @@ public class Utils {
     
     public static List<URL> findResources(String name) {
         try {
-            Enumeration<URL> resources = Thread.currentThread().getContextClassLoader().getResources(name);
+            Enumeration<URL> resources = Utils.class.getClassLoader().getResources(name);
             List<URL> ret = new ArrayList<URL>();
             while(resources.hasMoreElements()) {
                 ret.add(resources.nextElement());
@@ -110,9 +150,6 @@ public class Utils {
             if(resources.isEmpty()) {
                 if(mustExist) throw new RuntimeException("Could not find config file on classpath " + name);
                 else return new HashMap();
-            }
-            if(resources.size() > 1) {
-                throw new RuntimeException("Found multiple " + name + " resources. You're probably bundling the Storm jars with your topology jar.");
             }
             URL resource = resources.get(0);
             Yaml yaml = new Yaml();
@@ -357,4 +394,25 @@ public class Utils {
         buffer.get(ret, 0, ret.length);
         return ret;
     }
+
+  /**
+   * @return the classResolvers
+   */
+  public static Set<IClassResolverService> getClassResolvers() {
+    return classResolvers;
+  }
+
+  /**
+   * @param aClassResolvers the classResolvers to set
+   */
+  public static void setClassResolvers(Set<IClassResolverService> aClassResolvers) {
+    classResolvers = aClassResolvers;
+  }
+
+  /**
+   * @param aClojureLoader the clojureLoader to set
+   */
+  public static void setClojureLoader(IClojureLoader aClojureLoader) {
+    clojureLoader = aClojureLoader;
+  }
 }

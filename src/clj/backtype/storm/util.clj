@@ -258,8 +258,10 @@
   (byte-array (map byte vals)))
 
 (defn halt-process! [val & msg]
-  (log-message "Halting process: " msg)
-  (.halt (Runtime/getRuntime) val)
+  (.printStackTrace (new Exception))
+  ;;Halting a JVM like this isn't isn't being a good citizen, other code might be running in the JVM as well.
+  ;;(log-message "Halting process: " msg)
+  ;;(.halt (Runtime/getRuntime) val)
   )
 
 (defn sum [vals]

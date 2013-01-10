@@ -192,17 +192,16 @@
             (.blacklistHost cluster host))
           )))
     
-    (let [failed-iso-topologies (->> topology-worker-specs
-                                  (mapcat (fn [[top-id worker-specs]]
-                                    (if-not (empty? worker-specs) [top-id])
-                                    )))]
-      (if (empty? failed-iso-topologies)
-        ;; run default scheduler on non-isolated topologies
-        (-<> topology-worker-specs
-             allocated-topologies
-             (leftover-topologies topologies <>)
-             (DefaultScheduler/default-schedule <> cluster))
-        (log-warn "Unstable to isolate topologies " (pr-str failed-iso-topologies) ". Will wait for enough resources for isolated topologies before allocating any other resources.")
+    (doseq [[top-id worker-specs] topology-worker-specs]
+      (if-not (empty? worker-specs)
+        (log-warn "Unable to isolate topology " top-id)
         ))
+    
+    
+    ;; run default scheduler on iso topologies that didn't have enough slot + non-isolated topologies
+    (-<> topology-worker-specs
+         allocated-topologies
+         (leftover-topologies topologies <>)
+         (DefaultScheduler/default-schedule <> cluster))
     (.setBlacklistedHosts cluster orig-blacklist)
     ))
