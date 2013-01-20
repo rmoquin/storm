@@ -18,8 +18,13 @@
 
 (defmacro zeromq-imports []
   '(do
-    (import '[org.zeromq ZMQ ZMQ$Context ZMQ$Socket])
-    ))
+     (let [loader (.getContextClassLoader (Thread/currentThread))]
+    (try
+      (Class/forName "org.zeromq.ZMQ" false loader)
+      (import '[org.zeromq ZMQ ZMQ$Context ZMQ$Socket])
+      (catch ClassNotFoundException cnfe false
+        (import '[org.jeromq ZMQ ZMQ$Context ZMQ$Socket])))))
+    )
 
 (zeromq-imports)
 

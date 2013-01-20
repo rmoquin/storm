@@ -22,8 +22,8 @@ if sys.platform == "cygwin":
 else:
     normclasspath = identity
 
-CONF_DIR = os.path.expanduser("~/.storm")
-STORM_DIR = "/".join(os.path.realpath( __file__ ).split("/")[:-2])
+CONF_DIR = os.path.expanduser("~" + os.sep + ".storm")
+STORM_DIR = os.sep.join(os.path.realpath( __file__ ).split(os.sep)[:-2])
 CONFIG_OPTS = []
 CONFFILE = ""
 
@@ -31,7 +31,8 @@ def get_config_opts():
     global CONFIG_OPTS
     return "-Dstorm.options=" + (','.join(CONFIG_OPTS)).replace(' ', "%%%%")
 
-if not os.path.exists(STORM_DIR + "/RELEASE"):
+if not os.path.exists(STORM_DIR + os.sep + "RELEASE"):
+    print os.path.realpath( __file__ )
     print "******************************************"
     print "The storm client can only be run from within a release. You appear to be trying to run the client from a checkout of Storm's source code."
     print "\nYou can download a Storm release at https://github.com/nathanmarz/storm/downloads"
@@ -43,14 +44,22 @@ def get_jars_full(adir):
     ret = []
     for f in files:
         if f.endswith(".jar"):
-            ret.append(adir + "/" + f)
+            ret.append(adir + os.sep + f)
+    return ret
+
+def get_storm_jar(adir):
+    files = os.listdir(adir)
+    ret = []
+    for f in files:
+        if f.startswith("storm") and f.endswith(".jar"):
+            ret.append(adir + os.sep + f)
     return ret
 
 def get_classpath(extrajars):
-    ret = get_jars_full(STORM_DIR)
-    ret.extend(get_jars_full(STORM_DIR + "/lib"))
+    ret = get_storm_jar(STORM_DIR)
+    ret.extend(get_jars_full(STORM_DIR + os.sep + "lib"))
     ret.extend(extrajars)
-    return normclasspath(":".join(ret))
+    return normclasspath(os.pathsep.join(ret))
 
 def confvalue(name, extrapaths):
     global CONFFILE
@@ -84,7 +93,7 @@ def print_remoteconfvalue(name):
 
     This command must be run on a cluster machine.
     """
-    print name + ": " + confvalue(name, [STORM_DIR + "/conf"])
+    print name + ": " + confvalue(name, [STORM_DIR + os.sep + "conf"])
 
 def parse_args(string):
     r"""Takes a string of whitespace-separated tokens and parses it into a list.
@@ -132,7 +141,7 @@ def jar(jarfile, klass, *args):
     exec_storm_class(
         klass,
         jvmtype="-client",
-        extrajars=[jarfile, CONF_DIR, STORM_DIR + "/bin"],
+        extrajars=[jarfile, CONF_DIR, STORM_DIR + os.sep + "bin"],
         args=args,
         jvmopts=["-Dstorm.jar=" + jarfile])
 
@@ -150,7 +159,7 @@ def kill(*args):
         "backtype.storm.command.kill_topology", 
         args=args, 
         jvmtype="-client", 
-        extrajars=[CONF_DIR, STORM_DIR + "/bin"])
+        extrajars=[CONF_DIR, STORM_DIR + os.sep + "bin"])
 
 def activate(*args):
     """Syntax: [storm activate topology-name]
@@ -161,7 +170,7 @@ def activate(*args):
         "backtype.storm.command.activate", 
         args=args, 
         jvmtype="-client", 
-        extrajars=[CONF_DIR, STORM_DIR + "/bin"])
+        extrajars=[CONF_DIR, STORM_DIR + os.sep + "bin"])
 
 def listtopos(*args):
     """Syntax: [storm list]
@@ -172,7 +181,7 @@ def listtopos(*args):
         "backtype.storm.command.list", 
         args=args, 
         jvmtype="-client", 
-        extrajars=[CONF_DIR, STORM_DIR + "/bin"])
+        extrajars=[CONF_DIR, STORM_DIR + os.sep + "bin"])
 
 def deactivate(*args):
     """Syntax: [storm deactivate topology-name]
@@ -183,7 +192,7 @@ def deactivate(*args):
         "backtype.storm.command.deactivate", 
         args=args, 
         jvmtype="-client", 
-        extrajars=[CONF_DIR, STORM_DIR + "/bin"])
+        extrajars=[CONF_DIR, STORM_DIR + os.sep + "bin"])
 
 def rebalance(*args):
     """Syntax: [storm rebalance topology-name [-w wait-time-secs] [-n new-num-workers] [-e component=parallelism]*]
@@ -210,7 +219,7 @@ def rebalance(*args):
         "backtype.storm.command.rebalance", 
         args=args, 
         jvmtype="-client", 
-        extrajars=[CONF_DIR, STORM_DIR + "/bin"])
+        extrajars=[CONF_DIR, STORM_DIR + os.sep + "bin"])
 
 def shell(resourcesdir, command, *args):
     tmpjarpath = "stormshell" + str(random.randint(0, 10000000)) + ".jar"
@@ -231,7 +240,7 @@ def repl():
     Opens up a Clojure REPL with the storm jars and configuration 
     on the classpath. Useful for debugging.
     """
-    cppaths = [STORM_DIR + "/conf"]
+    cppaths = [STORM_DIR + os.sep + "conf"]
     exec_storm_class("clojure.lang.Repl", jvmtype="-client", extrajars=cppaths)
 
 def nimbus(klass="backtype.storm.daemon.nimbus"):
@@ -243,7 +252,7 @@ def nimbus(klass="backtype.storm.daemon.nimbus"):
     See Setting up a Storm cluster for more information.
     (https://github.com/nathanmarz/storm/wiki/Setting-up-a-Storm-cluster)
     """
-    cppaths = [STORM_DIR + "/log4j", STORM_DIR + "/conf"]
+    cppaths = [STORM_DIR + os.sep + "log4j", STORM_DIR + os.sep + "conf"]
     jvmopts = parse_args(confvalue("nimbus.childopts", cppaths)) + [
         "-Dlogfile.name=nimbus.log",
         "-Dlog4j.configuration=storm.log.properties",
@@ -263,7 +272,7 @@ def supervisor(klass="backtype.storm.daemon.supervisor"):
     See Setting up a Storm cluster for more information.
     (https://github.com/nathanmarz/storm/wiki/Setting-up-a-Storm-cluster)
     """
-    cppaths = [STORM_DIR + "/log4j", STORM_DIR + "/conf"]
+    cppaths = [STORM_DIR + os.sep + "log4j", STORM_DIR + os.sep + "conf"]
     jvmopts = parse_args(confvalue("supervisor.childopts", cppaths)) + [
         "-Dlogfile.name=supervisor.log",
         "-Dlog4j.configuration=storm.log.properties",
@@ -284,7 +293,7 @@ def ui():
     See Setting up a Storm cluster for more information.
     (https://github.com/nathanmarz/storm/wiki/Setting-up-a-Storm-cluster)
     """
-    cppaths = [STORM_DIR + "/log4j", STORM_DIR + "/conf"]
+    cppaths = [STORM_DIR + os.sep + "log4j", STORM_DIR + os.sep + "conf"]
     jvmopts = parse_args(confvalue("ui.childopts", cppaths)) + [
         "-Dlogfile.name=ui.log",
         "-Dlog4j.configuration=storm.log.properties",
@@ -293,7 +302,7 @@ def ui():
         "backtype.storm.ui.core", 
         jvmtype="-server", 
         jvmopts=jvmopts, 
-        extrajars=[STORM_DIR + "/log4j", STORM_DIR, STORM_DIR + "/conf"])
+        extrajars=[STORM_DIR + os.sep + "log4j", STORM_DIR, STORM_DIR + os.sep + "conf"])
 
 def drpc():
     """Syntax: [storm drpc]
@@ -309,7 +318,7 @@ def drpc():
         "backtype.storm.daemon.drpc", 
         jvmtype="-server", 
         jvmopts=jvmopts, 
-        extrajars=[STORM_DIR + "/log4j", STORM_DIR + "/conf"])
+        extrajars=[STORM_DIR + os.sep + "log4j", STORM_DIR, STORM_DIR + os.sep + "conf"])
 
 def dev_zookeeper():
     """Syntax: [storm dev-zookeeper]
@@ -318,18 +327,18 @@ def dev_zookeeper():
     "storm.zookeeper.port" as its port. This is only intended for development/testing, the
     Zookeeper instance launched is not configured to be used in production.
     """
-    cppaths = [STORM_DIR + "/log4j", STORM_DIR + "/conf"]
+    cppaths = [STORM_DIR + os.sep + "log4j", STORM_DIR, STORM_DIR + os.sep + "conf"]
     exec_storm_class(
         "backtype.storm.command.dev_zookeeper", 
         jvmtype="-server", 
-        extrajars=[STORM_DIR + "/log4j", STORM_DIR + "/conf"])
+        extrajars=[STORM_DIR + os.sep + "log4j", STORM_DIR, STORM_DIR + os.sep + "conf"])
 
 def version():
   """Syntax: [storm version]
   
   Prints the version number of this Storm release.  
   """
-  releasefile = STORM_DIR + "/RELEASE"
+  releasefile = STORM_DIR + os.sep + "RELEASE"
   if os.path.exists(releasefile):
     print open(releasefile).readline().strip()
   else:
